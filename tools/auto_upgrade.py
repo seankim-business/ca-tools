@@ -8,7 +8,7 @@ that request automatically, so the submitter does not have to open a second pull
 
 For every slug given (the claims submissions entered in this table-page run), every row that
 
-  - is SCREENED, names "submission <slug>" in its notes and has an array_sha256,
+  - is SCREENED, names "submission <slug>" (claims) or "from submissions/<slug>/external.csv" (deposit arrays) in its notes and has an array_sha256,
   - has no VERIFIED row with the same array_sha256, and
   - is not named by any existing submissions/*/upgrade.csv,
 
@@ -58,7 +58,7 @@ def plan(rows, slugs, seen):
     verified = {r["array_sha256"] for r in rows if r["tier"] == "VERIFIED" and r["array_sha256"]}
     out = {}
     for slug in slugs:
-        pat = re.compile(r"submission %s(?:[;,\"]|$)" % re.escape(slug))
+        pat = re.compile(r"(?:submission %s(?:[;,\"]|$)|from submissions/%s/external\.csv)" % (re.escape(slug), re.escape(slug)))
         for r in rows:
             sha = r["array_sha256"]
             if r["tier"] != "SCREENED" or not sha or not pat.search(r["notes"] or ""):

@@ -265,17 +265,23 @@ hash the check reports for an ordinary submission. The other fields are
 as in `claims.csv`.
 
 The pull request check does not download these. It reads
-`external.csv` only to say that the maintainer will check it. A
-maintainer runs `python3 tools/external_array.py submissions/<slug>`
-on a larger machine, usually within a few days, and posts the result
-on the pull request. It downloads each file, rebuilds the canonical
-form as a stream, compares the hash, runs `ca_verify` at strength t (in
-full within its budget of 60 minutes per array, otherwise on the same
-deterministic column windows as the pull request check, which gives
-SCREENED), compares the size with the table, and with `--apply` adds
-the rows and an entry in `table/EXTERNAL.csv`. The table then names the exact array, where it is
-and how it was checked, without holding a copy, and the page links to
-the deposit. Anyone can fetch and confirm an external array with
+`external.csv` only to say that the arrays will be checked after the
+merge. When the pull request is merged, the table workflow on main runs
+`python3 tools/external_array.py submissions/<slug> --apply` itself, on a
+GitHub-hosted runner, and posts the result on the pull request. It
+downloads each file (a zip archive once, however many of its members are
+named), rebuilds the canonical form as a stream, compares the hash, runs
+`ca_verify` at strength t (in full within the budget of 15 minutes per
+array, otherwise on the same deterministic column windows as the pull
+request check, which gives SCREENED), compares the size with the table,
+and only if every claim passes adds the rows and an entry in
+`table/EXTERNAL.csv`. A SCREENED array is then queued for its exact check,
+in shards, as for `claims.csv`. If a claim does not pass, nothing is added
+and the folder gets a `NOT_APPLIED.md` with the report. A maintainer can
+also run the same command by hand on a larger machine before the merge
+(60 minutes per array by default). The table then names the exact array,
+where it is and how it was checked, without holding a copy, and the page
+links to the deposit. Anyone can fetch and confirm an external array with
 `python3 tools/external_array.py --fetch LOCATION SHA256 OUT`.
 
 ## Which route to use

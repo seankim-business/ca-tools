@@ -45,7 +45,7 @@ def main():
     with tempfile.TemporaryDirectory() as root:
         os.makedirs(os.path.join(root, "table"))
         os.makedirs(os.path.join(root, "submissions", "hand"))
-        A, B, C, D, E, F = ("a" * 64, "b" * 64, "c" * 64, "d" * 64, "e" * 64, "f" * 64)
+        A, B, C, D, E, F, G, H = ("a" * 64, "b" * 64, "c" * 64, "d" * 64, "e" * 64, "f" * 64, "1" * 64, "2" * 64)
         rows = [
             row("SCREENED", A, "credit: Jane Smith; SCREENED, not exhaustively verified; submission s1; x"),
             row("SCREENED", B, "credit: Jane Smith; submission s1"),
@@ -54,6 +54,9 @@ def main():
             row("SCREENED", D, "credit: Ann Lee; submission s10"),
             row("VERIFIED", E, "credit: Jane Smith; submission s1"),
             row("SCREENED", F, "submission s1"),
+            row("SCREENED", G, "credit: Cy Dee; external array: https://zenodo.org/records/1/files/a.zip::x; "
+                               "from submissions/s2/external.csv; SCREENED, not exhaustively verified"),
+            row("SCREENED", H, "credit: Eve Fox; from submissions/s20/external.csv"),
         ]
         with open(os.path.join(root, "table", "ca_table.csv"), "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=COLS); w.writeheader(); w.writerows(rows)
@@ -75,6 +78,13 @@ def main():
 
         rc, out = run(root, "s1")
         check("second run queues nothing", rc == 0 and out == [])
+
+        # deposit arrays (submissions/<slug>/external.csv) are queued like claims, with an exact slug match
+        rc, out = run(root, "s2")
+        p2 = os.path.join(root, "submissions", "s2-exact", "upgrade.csv")
+        recs2 = list(csv.DictReader(open(p2))) if os.path.isfile(p2) else []
+        check("a SCREENED deposit array is queued", rc == 0 and out == ["s2-exact"] and [r["sha256"] for r in recs2] == [G])
+        check("deposit slug match is exact (s20 not taken for s2)", all(r["sha256"] != H for r in recs2))
 
         os.makedirs(os.path.join(root, "submissions", "s10-exact"))
         rc, out = run(root, "s10")

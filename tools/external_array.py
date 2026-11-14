@@ -30,6 +30,7 @@ Usage:
 --local-root (tests only) reads locations of the form local:<path> under DIR.
 """
 import argparse
+import atexit
 import csv
 import datetime
 import hashlib
@@ -77,20 +78,38 @@ def check_location(loc, local_root=None):
     return base, member
 
 
+_ZIP_CACHE = {}          # zip URL -> local copy, so a deposit of many members is downloaded once
+_ZIP_DIR = []
+
+
+def _zip_dir():
+    if not _ZIP_DIR:
+        _ZIP_DIR.append(tempfile.mkdtemp(prefix="caext-zip-"))
+        atexit.register(shutil.rmtree, _ZIP_DIR[0], True)
+    return _ZIP_DIR[0]
+
+
 def download(loc, workdir, local_root=None):
-    """Returns the path of the raw array file (extracted from the zip if needed)."""
+    """Returns the path of the raw array file (extracted from the zip if needed). A zip archive is
+    downloaded once per run, however many of its members the claims name."""
     base, member = check_location(loc, local_root)
     raw = os.path.join(workdir, "download")
-    if local_root and base.startswith("local:"):
-        shutil.copyfile(os.path.join(local_root, base[len("local:"):]), raw)
+    if member and base in _ZIP_CACHE and os.path.isfile(_ZIP_CACHE[base]):
+        raw = _ZIP_CACHE[base]
     else:
-        req = urllib.request.Request(base, headers={"User-Agent": "ca-tools external_array"})
-        with urllib.request.urlopen(req, timeout=120) as r, open(raw, "wb") as f:
-            shutil.copyfileobj(r, f, 1 << 20)
-    if not member:
-        return raw
-    if not zipfile.is_zipfile(raw):
-        raise ExtError("location names member %r but the file is not a zip archive" % member)
+        if local_root and base.startswith("local:"):
+            shutil.copyfile(os.path.join(local_root, base[len("local:"):]), raw)
+        else:
+            req = urllib.request.Request(base, headers={"User-Agent": "ca-tools external_array"})
+            with urllib.request.urlopen(req, timeout=120) as r, open(raw, "wb") as f:
+                shutil.copyfileobj(r, f, 1 << 20)
+        if not member:
+            return raw
+        if not zipfile.is_zipfile(raw):
+            raise ExtError("location names member %r but the file is not a zip archive" % member)
+        cached = os.path.join(_zip_dir(), "z%d.zip" % len(_ZIP_CACHE))
+        shutil.move(raw, cached)
+        _ZIP_CACHE[base] = raw = cached
     out = os.path.join(workdir, "member")
     with zipfile.ZipFile(raw) as z:
         try:
@@ -99,7 +118,6 @@ def download(loc, workdir, local_root=None):
             raise ExtError("zip archive has no member %r" % member)
         with z.open(info) as src, open(out, "wb") as dst:
             shutil.copyfileobj(src, dst, 1 << 20)
-    os.remove(raw)
     return out
 
 

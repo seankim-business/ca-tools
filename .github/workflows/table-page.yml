@@ -130,6 +130,51 @@ jobs:
             fi
           done
           rm -f ca_verify tools/constant_rows c.md
+      - name: Add the arrays of merged external submissions (deposits) not yet in the table
+        # submissions/<slug>/external.csv names arrays kept in a public deposit (submissions/README.md,
+        # "Arrays above 50 MiB"). The pull request check only says that they will be checked. Here, on
+        # main (trusted tools, the pull request read as data), tools/external_array.py downloads each
+        # array, compares its hash, verifies it in full within BUDGET_MINUTES or screens it, compares it
+        # with the table and, only if every claim passes, enters the rows and table/EXTERNAL.csv. A
+        # screened array is queued for its exact check by the next step, as for claims.csv.
+        run: |
+          touch applied.txt
+          slugs=""
+          for f in submissions/*/external.csv; do
+            [ -f "$f" ] || continue
+            slug=$(basename "$(dirname "$f")")
+            case "$slug" in example|*[!A-Za-z0-9._-]*) continue ;; esac
+            [ -f "submissions/$slug/NOT_APPLIED.md" ] && continue
+            if grep -qF "from submissions/$slug/external.csv" table/ca_table.csv; then continue; fi
+            slugs="$slugs $slug"
+          done
+          [ -n "$slugs" ] || { echo "Every merged external submission is in the table."; exit 0; }
+          echo "External submissions not yet in the table:$slugs"
+          cc -O3 -pthread -o ca_verify ca_verify.c
+          stamp=$(git rev-parse --short HEAD)
+          mkdir -p out
+          for slug in $slugs; do
+            added=$(git log --diff-filter=A --format=%H -n 1 -- "submissions/$slug/external.csv")
+            pr=""
+            [ -n "$added" ] && pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$added/pulls" --jq '.[0].number' 2>/dev/null || true)
+            case "$pr" in ''|*[!0-9]*) pr="" ;; esac
+            if python3 tools/external_array.py "submissions/$slug" \
+                 --table-dir table --ca-verify ./ca_verify --threads "$THREADS" \
+                 --budget-minutes "$BUDGET_MINUTES" --apply > "out/ext-$slug.txt" 2>&1; then
+              echo "$slug" >> applied.txt
+              msg="Merged and added to the table: \`$slug\` (arrays in a deposit, downloaded and checked again on main at $stamp)."
+            else
+              echo "::warning::external submission $slug did not pass on main and was not added; see the run summary"
+              msg="Merged, but \`$slug\` did not pass when its deposit arrays were checked on main at $stamp, so nothing was added to the table. Report below."
+              { echo "# Not added to the table"; echo; echo "Checked again on main at $stamp; it did not pass. Delete this file to try again."; echo; echo '```'; tail -n 60 "out/ext-$slug.txt"; echo '```'; } > "submissions/$slug/NOT_APPLIED.md"
+            fi
+            { echo "## external submission $slug"; echo '```'; tail -n 80 "out/ext-$slug.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$pr" ]; then
+              { echo "$msg"; echo; echo '```'; tail -n 80 "out/ext-$slug.txt" | head -c 50000; echo '```'; } > c.md
+              gh pr comment "$pr" --repo "$GITHUB_REPOSITORY" --body-file c.md || true
+            fi
+          done
+          rm -f ca_verify c.md
       - name: Queue the exact check of arrays that entered as SCREENED
         run: |
           : > queued.txt
