@@ -1,4 +1,4 @@
-# cafast (development version, to become 0.1.1)
+# cafast 0.1.1
 
 * New function `CA_to_PCA_c()`: brings a strength 2 array into the
   partitioned form used by `CAs::productPCA()`, choosing the `v` rows
