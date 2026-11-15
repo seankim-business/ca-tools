@@ -67,7 +67,12 @@ def row(t, v, k, n, tier="CITED", src="S1", snap=SNAP, sha="", entered="2026-08-
 DERIVED_HEADER = ["t", "v", "k", "N", "lookup_N", "gain_pct", "law", "arithmetic", "round"]
 
 
-def write_table(d, rows, manifest=(), withdrawn=(), derived=()):
+def write_table(d, rows, manifest=(), withdrawn=(), derived=(), constant_rows=()):
+    if constant_rows:
+        with open(os.path.join(d, "constant_rows.csv"), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, lineterminator="\n")
+            w.writerow(["array_sha256", "constant_rows", "basis", "witness_rows", "method", "computed"])
+            w.writerows(constant_rows)
     if derived:
         with open(os.path.join(d, "derived.csv"), "w", newline="", encoding="utf-8") as f:
             w = csv.writer(f, lineterminator="\n")
@@ -663,6 +668,23 @@ def test_get():
           "a NIST row without a stored file: get url, built as CAs::nistCA builds it")
 
 
+def test_constant_rows_csv():
+    sha1, sha2 = "7" * 64, "8" * 64
+    rows = [row(2, 4, 10, 30, "VERIFIED", "S7", "", sha1), row(2, 4, 12, 33, "VERIFIED", "S7", "", sha2)]
+    man = [["CA_30_2_10_4.txt", 2, 4, 10, 30, "equals_best", sha1, "S7", "", "", ""],
+           ["CA_33_2_12_4.txt", 2, 4, 12, 33, "equals_best", sha2, "S7", "", "", 2]]
+    cr = [[sha1, 3, "lower_bound", "1 5 9", "constant_rows_fast", "2026-11-14"],
+          [sha2, 4, "exact", "1 2 3 4", "constant_rows_fast", "2026-11-14"]]
+    fr, _ = frame(rows, manifest=man, constant_rows=cr)
+    g = {l["k"]: (l["constant_rows"], l["constant_rows_basis"]) for l in at(fr, 2, 4)}
+    check(g.get("10") == ("3", "lower_bound"),
+          "a stored array without a MANIFEST count takes its count and basis from constant_rows.csv")
+    check(g.get("12") == ("2", "exact"), "a MANIFEST count wins over constant_rows.csv")
+    fr, _ = frame(rows, manifest=man)
+    check({l["k"]: l["constant_rows"] for l in at(fr, 2, 4)}.get("10") == "",
+          "without constant_rows.csv the count stays empty")
+
+
 def test_text_and_check():
     rows = [row(3, 5, 20, 100, con="a label, with a comma"), row(2, 2, 4, 5)]
     with tempfile.TemporaryDirectory() as d:
@@ -719,7 +741,7 @@ def main():
                test_label_with_colon_and_comma, test_add1, test_add1_t3, test_add1_chain_cut_sound,
                test_add1_ingredient_tier, test_ci_checks, test_add1_scope, test_colbourn_add1_rows,
                test_get_from_tied_verified, test_withdrawn_fixture, test_live_withdrawn_list,
-               test_get, test_text_and_check):
+               test_get, test_constant_rows_csv, test_text_and_check):
         fn()
     print("%d passed, %d failed" % (RESULTS["pass"], RESULTS["fail"]))
     return 1 if RESULTS["fail"] else 0

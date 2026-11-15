@@ -1,4 +1,4 @@
-# Conventions of the covering array table (version 1.8, November 2026)
+# Conventions of the covering array table (version 1.9, November 2026)
 
 Parts that describe files not built yet say "will" or "planned". Anything that changes what the CAs package
 reads is announced to its author before it goes live (section 5).
@@ -298,9 +298,13 @@ Four columns will be added at the end of `table/ca_table.csv`:
   not in `ca_table.csv`, to keep the file CAs downloads small.
 - Until these columns are added, the frame file computes id, constant_rows, constant_rows_basis and
   get itself (`tools/build_frame.py`), by the same rules. constant_rows describes the array
-  that get points to: the exact count where the array is in `table/arrays/` with its count, and a
-  lower bound where the array is given by a covering perfect hash family (q constant rows for an
-  affine expansion, the all-zero row for a plain one); a derived step has get none. When the named
+  that get points to: the exact count where the array is in `table/arrays/` with its count; else
+  the count recorded for the array's sha256 in `table/constant_rows.csv` (arrays rebuilt from a
+  certificate or a construction, deposit arrays, and stored arrays without a count), exact or a
+  lower bound, with the rows that show it (`tools/constant_rows_table.py verify` rebuilds the array
+  and checks them); else a lower bound where the array is given by a covering perfect hash family
+  (q constant rows for an affine expansion, the all-zero row for a plain one); a derived step has
+  get none. When the named
   row of a step has get none but another counted VERIFIED row tied at the same step (same t, v, k
   and N) has an array, the frame line takes get, get_ref, constant_rows and constant_rows_basis
   from the first such row in the order of section 9; its id, tier and construction stay those of
@@ -449,3 +453,7 @@ the frame file only.
 - Version 1.8 (November 2026). Section 8: the label list exists. `families.csv` lists the families (the 31
   labels of CAs first) and `lexicon.csv` places every construction text in one of them. The column family of the frame file, empty
   until now, is filled. No rule changed.
+- Version 1.9 (November 2026). Section 7: `table/constant_rows.csv` records the constant rows of arrays that
+  are not stored with a count (construction and certificate arrays first), each with its witness rows, and
+  the frame file reads it. Where a line's count is new, the order of section 9 can now name a different
+  tied row (the one with more constant rows). No rule changed.

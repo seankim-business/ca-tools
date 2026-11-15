@@ -22,7 +22,7 @@ Counts as of 2026-11-15, the latest entry date in the table:
 - VERIFIED rows without a stored array: 737 (S4 143, S5 100, S6 139, S7 345, S8 10), 303 of them above the best known size; 10 identified by their family, array not hashed
 - against the frozen tables at their 13,641 points, the lookups over CITED and VERIFIED rows give a smaller N at 2,388 and more columns at 2,445, and a worse value at 0
 - rows whose N is above 2^31 - 1, the largest 32-bit integer (so table/ca_table.R reads N as numeric): 847
-- frame file `ca_frame.csv`: 9,626 lines, 589 of them derived; add1 is in the working of 232 derived lines (27 at t = 3), and 152 workings mix two kinds of step; get is none on 0 VERIFIED row lines (arrays the table cannot point to), and 446 CITED row lines take get from a VERIFIED row tied at their step
+- frame file `ca_frame.csv`: 9,626 lines, 589 of them derived; add1 is in the working of 232 derived lines (27 at t = 3), and 149 workings mix two kinds of step; get is none on 0 VERIFIED row lines (arrays the table cannot point to), and 446 CITED row lines take get from a VERIFIED row tied at their step
 <!-- end of generated block -->
 
 The counts above are written by `../tools/consistency.py` after every
@@ -177,6 +177,13 @@ the array files and these documents agree.
   construction text; the first that matches gives the family
   (`python3 tools/lexicon.py "text"`, and `--count` for rows per family).
   Edited by hand; corrections are welcome by issue or email.
+- `constant_rows.csv` (since 2026-11-15) - constant-row counts of arrays whose
+  count is not in `MANIFEST.csv`: arrays rebuilt from a construction or a
+  covering perfect hash family certificate, deposit arrays, and stored arrays
+  without a count. One line per array hash, with the count, its basis (exact,
+  or lower_bound when the search did not finish) and the witness rows that
+  show it. `python3 tools/constant_rows_table.py verify` rebuilds each array
+  and checks the witness; the frame file reads the counts.
 - `derived.csv` - generated, never edited by hand: sizes that follow from the
   counted rows by published constructions (fusing symbols, deriving a strength,
   adding one column (t >= 3), composition, Chateauneuf-Kreher doubling, CMTW Thm 3.4, k-ary Roux with Yin's

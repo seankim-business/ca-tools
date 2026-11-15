@@ -1172,6 +1172,58 @@ def check_external(rows, man):
                     % (EXTERNAL, sha[:12], e["location"], ", ".join(EXTERNAL_HOSTS)))
 
 
+CONSTANT_ROWS = "table/constant_rows.csv"
+CONSTANT_ROWS_HEADER = ["array_sha256", "constant_rows", "basis", "witness_rows", "method", "computed"]
+
+
+def check_constant_rows(rows, man):
+    """table/constant_rows.csv (tools/constant_rows_table.py): one line per array, the hash of a VERIFIED
+    row, 1 <= count <= v, basis exact or lower_bound, as many distinct witness rows as the count, each
+    within the array's N; not for an array whose MANIFEST line already has a count."""
+    if not os.path.exists(CONSTANT_ROWS):
+        return
+    raw = open(CONSTANT_ROWS, "rb").read()
+    if b"\r" in raw:
+        problem("%s: contains CR characters; the file is LF throughout" % CONSTANT_ROWS)
+    hdr = raw.split(b"\n", 1)[0].decode("utf-8", "replace").split(",")
+    if hdr != CONSTANT_ROWS_HEADER:
+        problem("%s: header differs from %s" % (CONSTANT_ROWS, ",".join(CONSTANT_ROWS_HEADER)))
+        return
+    recs = list(csv.DictReader(open(CONSTANT_ROWS, newline="", encoding="utf-8")))
+    ver = {}
+    for r in rows:
+        if r["tier"] == "VERIFIED" and r["array_sha256"]:
+            ver.setdefault(r["array_sha256"], r)
+    counted = {m["sha256"] for m in man if (m.get("constant_rows") or "").isdigit()}
+    seen = collections.Counter(c["array_sha256"] for c in recs)
+    for c in recs:
+        sha = c["array_sha256"]
+        if not HEX64.match(sha):
+            problem("%s: sha256 %r is not 64 lower-case hex digits" % (CONSTANT_ROWS, sha))
+            continue
+        if seen[sha] > 1:
+            problem("%s: %s listed %d times" % (CONSTANT_ROWS, sha[:12], seen[sha]))
+        if sha in counted:
+            problem("%s: %s already has its count in %s" % (CONSTANT_ROWS, sha[:12], MANIFEST))
+        r = ver.get(sha)
+        if r is None:
+            problem("%s: %s is the array of no VERIFIED row" % (CONSTANT_ROWS, sha[:12]))
+            continue
+        n = c["constant_rows"]
+        if not n.isdigit() or not 1 <= int(n) <= int(r["v"]):
+            problem("%s: %s count %r is not between 1 and v = %s" % (CONSTANT_ROWS, sha[:12], n, r["v"]))
+            continue
+        if c["basis"] not in ("exact", "lower_bound"):
+            problem("%s: %s basis %r is not exact or lower_bound" % (CONSTANT_ROWS, sha[:12], c["basis"]))
+        wit = c["witness_rows"].split()
+        if (len(wit) != int(n) or len(set(wit)) != len(wit)
+                or not all(w.isdigit() and 1 <= int(w) <= int(r["N"]) for w in wit)):
+            problem("%s: %s witness_rows is not %s distinct rows between 1 and N = %s"
+                    % (CONSTANT_ROWS, sha[:12], n, r["N"]))
+        if not c["method"] or not re.match(r"^\d{4}-\d{2}-\d{2}$", c["computed"]):
+            problem("%s: %s needs a method and a computed date (YYYY-MM-DD)" % (CONSTANT_ROWS, sha[:12]))
+
+
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 CODE = re.compile(r"`([^`\s]+)`")
 PATHLIKE = re.compile(r"^(\.\./|\./)?([A-Za-z0-9_.-]+/)+[A-Za-z0-9_.*-]+(\.[A-Za-z0-9]+)?/?$")
@@ -1254,6 +1306,7 @@ def main():
     check_structure(raw, rows, man)
     check_arrays(rows, man)
     check_external(rows, man)
+    check_constant_rows(rows, man)
     nder = check_derived(rows)
     nframe = check_frame(rows, "--pr" in args)
     old_count = base_row_count(args[args.index("--base") + 1]) \

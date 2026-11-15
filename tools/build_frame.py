@@ -50,7 +50,9 @@ every counted row at k' >= k). The columns (CONVENTIONS.md, section 7):
                       CITED, else VERIFIED
   id                  the id of the named row (below); empty for a derived step, which is not a row
   constant_rows       the number of constant rows of the array that get points to: the exact count of
-                      a stored array (table/MANIFEST.csv), or a guaranteed lower bound for an array
+                      a stored array (table/MANIFEST.csv); else the count recorded for the array's
+                      sha256 in table/constant_rows.csv (exact, or a lower bound shown by its witness
+                      rows; tools/constant_rows_table.py); else a guaranteed lower bound for an array
                       given by a covering perfect hash family (q for an affine expansion, 1 for a
                       plain one); empty where it is not known
   constant_rows_basis exact or lower_bound where constant_rows is filled, else empty
@@ -205,6 +207,7 @@ class Context:
         self.certs = read_csv(os.path.join(table_dir, "certificates", "CERTIFICATES.csv"))
         self.cons = read_csv(os.path.join(table_dir, "constructions", "CONSTRUCTIONS.csv"))
         self.cons_by_sha = {c["array_sha256"]: c for c in self.cons if c.get("array_sha256")}
+        self.crx = {c["array_sha256"]: c for c in read_csv(os.path.join(table_dir, "constant_rows.csv"))}
         self.index = {id(r): i for i, r in enumerate(self.rows)}
         # batch position: the rows of one snapshot entered on one day are one entry
         first = {}
@@ -268,13 +271,18 @@ class Context:
 
     def constant_rows(self, r, get):
         """(count, basis) for the array that get points to: the exact count of a stored array
-        (table/MANIFEST.csv), or a guaranteed lower bound for an array given by a covering perfect
+        (table/MANIFEST.csv), else the count recorded for the array's hash in table/constant_rows.csv
+        (deposit, certificate and construction arrays, and stored arrays whose MANIFEST count is
+        empty), or a guaranteed lower bound for an array given by a covering perfect
         hash family: its affine expansion holds the q constant runs, its plain expansion the all-zero
         run, and a symbol written as another (fuse a>b) keeps that run constant."""
         if get == "file":
             c = self.man[r["array_sha256"]].get("constant_rows") or ""
             if c.isdigit():
                 return c, "exact"
+        x = self.crx.get(r.get("array_sha256") or "")
+        if x is not None and get in ("file", "deposit", "certificate", "construction"):
+            return x["constant_rows"], x["basis"]
         if get == "certificate":
             c = self.cert_of(r)
             exp = (c.get("expansion") or "smc-1") if c is not None else ""

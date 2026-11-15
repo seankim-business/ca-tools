@@ -65,6 +65,8 @@ jobs:
         run: python3 tools/tests_frame/test_build_frame.py
       - name: Frame invariants (live table)
         run: python3 tools/tests_frame/test_frame_invariants.py
+      - name: Constant rows (constant_rows_fast.c, table/constant_rows.csv)
+        run: python3 tools/tests_frame/test_constant_rows.py
       - name: Above a size rule (CONVENTIONS 1.4)
         run: python3 tools/tests_submission/test_above_rule.py
       - name: Credit tools
